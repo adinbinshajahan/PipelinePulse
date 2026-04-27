@@ -1,16 +1,49 @@
 from fastapi import FastAPI
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
+from sklearn.datasets import load_iris
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
 
 app = FastAPI()
 
 scheduler = BackgroundScheduler()
 
+# store logs
+job_logs = []
+
+# ------------------ TASK FUNCTIONS ------------------
+
 def job():
     print(f"Job running at {datetime.now()}")
 
-scheduler.add_job(job, 'interval', seconds=60)
-scheduler.start()
+def train_model():
+    data = load_iris()
+    X_train, X_test, y_train, y_test = train_test_split(
+        data.data, data.target, test_size=0.2
+    )
+
+    model = RandomForestClassifier()
+    model.fit(X_train, y_train)
+
+    accuracy = model.score(X_test, y_test)
+    print(f"Model trained. Accuracy: {accuracy}")
+
+    job_logs.append({
+        "job": "train_model",
+        "time": datetime.now().isoformat(),
+        "accuracy": accuracy
+    })
+
+# ------------------ SCHEDULER ------------------
+
+@app.on_event("startup")
+def start_scheduler():
+    scheduler.add_job(job, 'interval', seconds=60)
+    scheduler.add_job(train_model, 'interval', minutes=1)
+    scheduler.start()
+
+# ------------------ API ROUTES ------------------
 
 @app.get("/")
 def home():
@@ -20,3 +53,12 @@ def home():
 def run_job():
     job()
     return {"status": "Job executed"}
+
+@app.get("/train-model")
+def run_training():
+    train_model()
+    return {"status": "Model trained"}
+
+@app.get("/logs")
+def get_logs():
+    return job_logs
