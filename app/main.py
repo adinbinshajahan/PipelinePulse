@@ -1,3 +1,4 @@
+import joblib
 from fastapi import FastAPI
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
@@ -25,6 +26,7 @@ def train_model():
 
     model = RandomForestClassifier()
     model.fit(X_train, y_train)
+    joblib.dump(model, "model.pkl")
 
     accuracy = model.score(X_test, y_test)
     print(f"Model trained. Accuracy: {accuracy}")
@@ -61,4 +63,19 @@ def run_training():
 
 @app.get("/logs")
 def get_logs():
-    return job_logs
+    return {
+        "total_runs": len(job_logs),
+        "logs": job_logs[-10:]  # last 10 runs
+    }
+@app.get("/predict")
+def predict():
+    try:
+        model = joblib.load("model.pkl")
+
+        sample = [[5.1, 3.5, 1.4, 0.2]]
+        prediction = model.predict(sample)[0]
+
+        return {"prediction": int(prediction)}
+
+    except:
+        return {"error": "Model not trained yet"}
